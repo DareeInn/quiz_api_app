@@ -1,9 +1,9 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import '../app_config.dart';
 
 class AIService {
-  static const String _apiKey =
-      'qa_sk_1f9430c34619fffdb2f47ec8c0d6c9774e393555';
+  static String get _apiKey => quizApiKey;
   static const String _endpoint = 'https://api.openai.com/v1/chat/completions';
 
   // Generate a hint for a given question

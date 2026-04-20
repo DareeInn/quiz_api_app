@@ -1,4 +1,3 @@
-import 'dart:math';
 
 class Question {
   final String question;

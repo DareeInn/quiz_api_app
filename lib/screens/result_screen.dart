@@ -4,11 +4,13 @@ import '../main.dart';
 class ResultScreen extends StatelessWidget {
   final int score;
   final int totalQuestions;
+  final List<String> missedTopics;
 
   const ResultScreen({
     super.key,
     required this.score,
     required this.totalQuestions,
+    required this.missedTopics,
   });
 
   @override
