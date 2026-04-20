@@ -16,7 +16,7 @@ A Flutter quiz app project scaffolded with the required folder structure and sta
 1. Ensure you have Flutter installed: https://docs.flutter.dev/get-started/install
 2. Run the app:
    ```sh
-   flutter run
+   flutter run --dart-define=QUIZ_API_KEY=qa_sk_1f9430c34619fffdb2f47ec8c0d6c9774e393555
    ```
 
 ## Git
