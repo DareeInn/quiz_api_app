@@ -35,6 +35,7 @@ class _QuizHomePageState extends State<QuizHomePage> {
   int score = 0;
   bool answered = false;
   String? selectedAnswer;
+  bool canProceed = false;
 
   @override
   void initState() {
@@ -66,6 +67,7 @@ class _QuizHomePageState extends State<QuizHomePage> {
     setState(() {
       answered = true;
       selectedAnswer = selected;
+      canProceed = false;
       if (wasCorrect) {
         score++;
       }
@@ -79,29 +81,35 @@ class _QuizHomePageState extends State<QuizHomePage> {
       ),
       backgroundColor: wasCorrect ? Colors.green : Colors.red,
       behavior: SnackBarBehavior.floating,
-      duration: const Duration(milliseconds: 1200),
+      duration: const Duration(milliseconds: 2500),
       margin: const EdgeInsets.all(16),
     );
     ScaffoldMessenger.of(context).showSnackBar(snackBar);
 
-    Future.delayed(const Duration(seconds: 1), () {
+    Future.delayed(const Duration(milliseconds: 2500), () {
       if (!mounted) return;
-      if (currentIndex + 1 >= questions.length) {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (_) =>
-                ResultScreen(score: score, totalQuestions: questions.length),
-          ),
-        );
-      } else {
-        setState(() {
-          currentIndex++;
-          answered = false;
-          selectedAnswer = null;
-        });
-      }
+      setState(() {
+        canProceed = true;
+      });
     });
+  }
+
+  void nextQuestion() {
+    if (currentIndex + 1 >= questions.length) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (_) =>
+              ResultScreen(score: score, totalQuestions: questions.length),
+        ),
+      );
+    } else {
+      setState(() {
+        currentIndex++;
+        answered = false;
+        selectedAnswer = null;
+      });
+    }
   }
 
   // Add this override to reload questions when Play Again is pressed
@@ -276,6 +284,30 @@ class _QuizHomePageState extends State<QuizHomePage> {
                   ],
                 );
               }),
+              if (answered)
+                Center(
+                  child: ElevatedButton.icon(
+                    onPressed: canProceed ? nextQuestion : null,
+                    icon: const Icon(Icons.arrow_forward),
+                    label: Text(
+                      currentIndex + 1 >= questions.length
+                          ? 'See Results'
+                          : 'Next',
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.purple,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 32,
+                        vertical: 14,
+                      ),
+                      textStyle: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ),
             ],
           ),
         ),
