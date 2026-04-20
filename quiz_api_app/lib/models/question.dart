@@ -1,3 +1,5 @@
+import 'dart:math';
+
 class Question {
   final String question;
   final List<String> answers;
@@ -38,6 +40,8 @@ class Question {
     if (questionText.isEmpty || answerTexts.isEmpty || correct.isEmpty) {
       throw Exception('Invalid question data');
     }
+
+    answerTexts.shuffle();
 
     return Question(
       question: questionText,
