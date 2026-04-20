@@ -4,8 +4,14 @@ import '../models/question.dart';
 import '../app_config.dart';
 
 class TriviaService {
-  static Future<List<Question>> fetchQuestions() async {
-    final url = Uri.parse('https://quizapi.io/api/v1/questions?limit=10');
+  static Future<List<Question>> fetchQuestions({
+    String topic = '',
+    String difficulty = 'any',
+  }) async {
+    final params = <String, String>{'limit': '10'};
+    if (topic.isNotEmpty) params['category'] = topic;
+    if (difficulty != 'any') params['difficulty'] = difficulty;
+    final url = Uri.https('quizapi.io', '/api/v1/questions', params);
 
     final response = await http
         .get(

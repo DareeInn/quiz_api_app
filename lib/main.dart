@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 import 'models/question.dart';
 import 'services/trivia_service.dart';
+import 'services/ai_service.dart';
+import 'services/voice_service.dart';
+import 'models/user_performance.dart';
+import 'screens/search_screen.dart';
 
 void main() {
   runApp(const MyApp());
@@ -37,18 +41,64 @@ class _QuizHomePageState extends State<QuizHomePage> {
   String? selectedAnswer;
   bool canProceed = false;
 
+  UserPerformance userPerformance = UserPerformance();
+  String? hint;
+  bool showHintButton = false;
+  bool hintLoading = false;
+  DateTime? questionStartTime;
+
+  String quizTopic = '';
+  String quizDifficulty = 'any';
+
   @override
   void initState() {
     super.initState();
-    loadQuestions();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      startQuizWithSearch(context);
+    });
+  }
+
+  void startQuizWithSearch(BuildContext context) async {
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => SearchScreen(
+          onSearch: (topic, difficulty) {
+            Navigator.pop(context, {'topic': topic, 'difficulty': difficulty});
+          },
+        ),
+      ),
+    );
+    if (result != null && result is Map<String, String>) {
+      setState(() {
+        quizTopic = result['topic'] ?? '';
+        quizDifficulty = result['difficulty'] ?? 'any';
+      });
+      loadQuestions();
+    }
   }
 
   Future<void> loadQuestions() async {
+    setState(() {
+      message = 'Loading...';
+    });
     try {
-      final result = await TriviaService.fetchQuestions();
+      final result = await TriviaService.fetchQuestions(
+        topic: quizTopic,
+        difficulty: quizDifficulty,
+      );
       setState(() {
         questions = result;
         message = '';
+        currentIndex = 0;
+        score = 0;
+        answered = false;
+        selectedAnswer = null;
+        showHintButton = false;
+        hint = null;
+        canProceed = false;
+        questionStartTime = DateTime.now();
+        userPerformance.reset();
       });
     } catch (e) {
       setState(() {
@@ -58,19 +108,28 @@ class _QuizHomePageState extends State<QuizHomePage> {
     }
   }
 
-  void answerQuestion(String selected) {
+  void answerQuestion(String selected) async {
     if (answered) return;
 
     final correct = questions[currentIndex].correctAnswer;
     final wasCorrect = selected == correct;
+    final now = DateTime.now();
+    final responseTime = questionStartTime != null
+        ? now.difference(questionStartTime!).inSeconds
+        : 0;
+    userPerformance.recordAnswer(
+      correct: wasCorrect,
+      category: questions[currentIndex]
+          .question, // Replace with category if available
+      responseTime: responseTime,
+    );
 
     setState(() {
       answered = true;
       selectedAnswer = selected;
       canProceed = false;
-      if (wasCorrect) {
-        score++;
-      }
+      showHintButton = !wasCorrect;
+      hint = null;
     });
 
     // Show feedback SnackBar
@@ -86,21 +145,29 @@ class _QuizHomePageState extends State<QuizHomePage> {
     );
     ScaffoldMessenger.of(context).showSnackBar(snackBar);
 
-    Future.delayed(const Duration(milliseconds: 2500), () {
-      if (!mounted) return;
-      setState(() {
-        canProceed = true;
-      });
+    await Future.delayed(const Duration(milliseconds: 2500));
+    if (!mounted) return;
+    setState(() {
+      canProceed = true;
     });
   }
 
   void nextQuestion() {
+    // Adaptive difficulty: adjust for next fetch if needed
+    if (userPerformance.correctStreak >= 3) {
+      quizDifficulty = 'Medium';
+    } else if (userPerformance.wrongStreak >= 2) {
+      quizDifficulty = 'Easy';
+    }
     if (currentIndex + 1 >= questions.length) {
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
-          builder: (_) =>
-              ResultScreen(score: score, totalQuestions: questions.length),
+          builder: (_) => ResultScreen(
+            score: score,
+            totalQuestions: questions.length,
+            missedTopics: userPerformance.missedTopics,
+          ),
         ),
       );
     } else {
@@ -108,6 +175,10 @@ class _QuizHomePageState extends State<QuizHomePage> {
         currentIndex++;
         answered = false;
         selectedAnswer = null;
+        showHintButton = false;
+        hint = null;
+        canProceed = false;
+        questionStartTime = DateTime.now();
       });
     }
   }
@@ -284,6 +355,52 @@ class _QuizHomePageState extends State<QuizHomePage> {
                   ],
                 );
               }),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  ElevatedButton.icon(
+                    onPressed: () => VoiceService.speak(question.question),
+                    icon: const Icon(Icons.volume_up),
+                    label: const Text('Listen'),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              if (showHintButton && answered)
+                Center(
+                  child: hintLoading
+                      ? const CircularProgressIndicator()
+                      : ElevatedButton.icon(
+                          onPressed: () async {
+                            setState(() {
+                              hintLoading = true;
+                            });
+                            final h = await AIService.generateHint(
+                              question.question,
+                            );
+                            setState(() {
+                              hint = h;
+                              hintLoading = false;
+                            });
+                          },
+                          icon: const Icon(Icons.lightbulb_outline),
+                          label: const Text('Show Hint'),
+                        ),
+                ),
+              if (hint != null)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  child: Center(
+                    child: Text(
+                      'Hint: $hint',
+                      style: const TextStyle(
+                        fontSize: 18,
+                        color: Colors.deepOrange,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                ),
               if (answered)
                 Center(
                   child: ElevatedButton.icon(
@@ -319,11 +436,13 @@ class _QuizHomePageState extends State<QuizHomePage> {
 class ResultScreen extends StatelessWidget {
   final int score;
   final int totalQuestions;
+  final List<String> missedTopics;
 
   const ResultScreen({
     super.key,
     required this.score,
     required this.totalQuestions,
+    required this.missedTopics,
   });
 
   String getPerformanceMessage() {
@@ -361,6 +480,26 @@ class ResultScreen extends StatelessWidget {
                   fontSize: 20,
                   fontWeight: FontWeight.w500,
                 ),
+              ),
+              const SizedBox(height: 24),
+              FutureBuilder<String>(
+                future: AIService.generateReviewSummary(missedTopics),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const CircularProgressIndicator();
+                  }
+                  if (snapshot.hasError) {
+                    return const Text('Could not load review summary.');
+                  }
+                  return Text(
+                    snapshot.data ?? '',
+                    style: const TextStyle(
+                      fontSize: 16,
+                      color: Colors.blueGrey,
+                    ),
+                    textAlign: TextAlign.center,
+                  );
+                },
               ),
               const SizedBox(height: 30),
               ElevatedButton(
