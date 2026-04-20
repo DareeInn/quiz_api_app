@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../main.dart';
+import 'quiz_home_page.dart';
 
 class ResultScreen extends StatelessWidget {
   final int score;
@@ -37,7 +37,7 @@ class ResultScreen extends StatelessWidget {
                 onPressed: () {
                   Navigator.pushReplacement(
                     context,
-                    MaterialPageRoute(builder: (_) => const QuizHomePage()),
+                    MaterialPageRoute(builder: (_) => QuizHomePage()),
                   );
                 },
                 child: const Text('Play Again'),
